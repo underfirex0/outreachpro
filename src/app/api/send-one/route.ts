@@ -23,6 +23,7 @@ export async function POST(req: NextRequest) {
   const phone = lead.phone.replace(/[^0-9+]/g, "");
 
   try {
+    // Pass leadId so WA server can update the phone to exact WA format
     const res = await fetch(`${settings.wa_url}/send`, {
       method: "POST",
       headers: {
@@ -33,6 +34,7 @@ export async function POST(req: NextRequest) {
       signal: AbortSignal.timeout(15000),
     });
 
+    // Update lead status
     await supabase.from("leads").update({
       status: "sent",
       sent_at: new Date().toISOString(),

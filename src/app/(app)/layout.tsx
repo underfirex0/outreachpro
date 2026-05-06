@@ -1,21 +1,19 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, Send, MessageSquare, BarChart2, Settings, Zap, Wifi, WifiOff } from "lucide-react";
-
-const nav = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/leads", label: "Leads", icon: Users },
-  { href: "/send", label: "Send", icon: Send },
-  { href: "/crm", label: "CRM", icon: MessageSquare },
-  { href: "/ab", label: "A/B Results", icon: BarChart2 },
-  { href: "/settings", label: "Settings", icon: Settings },
-];
+import { usePathname, useRouter } from "next/navigation";
+import { LayoutDashboard, Users, Send, MessageSquare, BarChart2, Settings, Zap, Wifi, WifiOff, LogOut, UsersRound } from "lucide-react";
+import { useAuth } from "@/lib/auth";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const path = usePathname();
+  const router = useRouter();
+  const { user, loading, signOut, canAccess } = useAuth();
   const [waStatus, setWaStatus] = useState<"connected"|"disconnected"|"loading">("loading");
+
+  useEffect(() => {
+    if (!loading && !user) router.push("/login");
+  }, [user, loading, router]);
 
   useEffect(() => {
     const check = async () => {
@@ -29,6 +27,27 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const t = setInterval(check, 30000);
     return () => clearInterval(t);
   }, []);
+
+  if (loading) return (
+    <div className="min-h-screen bg-bg flex items-center justify-center">
+      <div className="text-white/30 text-sm">Loading...</div>
+    </div>
+  );
+
+  if (!user) return null;
+
+  const nav = [
+    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, show: true },
+    { href: "/leads", label: "Leads", icon: Users, show: true },
+    { href: "/send", label: "Send", icon: Send, show: true },
+    { href: "/crm", label: "CRM", icon: MessageSquare, show: true },
+    { href: "/ab", label: "A/B Results", icon: BarChart2, show: true },
+    { href: "/settings", label: "Settings", icon: Settings, show: canAccess("settings") },
+    { href: "/team", label: "Team", icon: UsersRound, show: user.role === "admin" },
+  ].filter(n => n.show);
+
+  const roleColors: Record<string, string> = { admin: "text-accent", manager: "text-blue", agent_b: "text-warm" };
+  const roleLabels: Record<string, string> = { admin: "Admin", manager: "Manager", agent_b: "Agent B" };
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -44,6 +63,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </div>
           </div>
         </div>
+
         <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
           {nav.map(({ href, label, icon: Icon }) => {
             const active = path === href;
@@ -55,15 +75,24 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             );
           })}
         </nav>
-        <div className="p-3 border-t border-white/[0.07]">
-          <div className="flex items-center gap-2.5 px-3 py-2.5 bg-surface2 rounded-lg">
-            {waStatus === "connected" ? <Wifi size={14} className="text-accent" /> : <WifiOff size={14} className="text-danger" />}
-            <div>
-              <div className="text-[12px] font-medium">{waStatus === "loading" ? "Checking..." : waStatus === "connected" ? "WhatsApp OK" : "WA Disconnected"}</div>
-              <div className="text-[10px] text-white/30">{waStatus === "connected" ? "Bot active" : "Check settings"}</div>
-            </div>
-            {waStatus === "connected" && <div className="ml-auto w-2 h-2 rounded-full bg-accent animate-pulse" />}
+
+        <div className="p-3 border-t border-white/[0.07] space-y-2">
+          <div className="px-3 py-2 bg-surface2 rounded-lg">
+            <div className={`text-[11px] font-bold uppercase tracking-wide ${roleColors[user.role]}`}>{roleLabels[user.role]}</div>
+            <div className="text-[11px] text-white/30 truncate">{user.email}</div>
           </div>
+          <div className="flex items-center gap-2.5 px-3 py-2 bg-surface2 rounded-lg">
+            {waStatus === "connected" ? <Wifi size={14} className="text-accent" /> : <WifiOff size={14} className="text-danger" />}
+            <div className="flex-1 min-w-0">
+              <div className="text-[12px] font-medium">{waStatus === "loading" ? "Checking..." : waStatus === "connected" ? "WhatsApp OK" : "WA Disconnected"}</div>
+            </div>
+            {waStatus === "connected" && <div className="w-2 h-2 rounded-full bg-accent animate-pulse flex-shrink-0" />}
+          </div>
+          <button onClick={() => { signOut(); router.push("/login"); }}
+            className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-white/40 hover:text-danger hover:bg-danger/10 rounded-lg transition-all">
+            <LogOut size={14} />
+            Sign out
+          </button>
         </div>
       </aside>
       <main className="flex-1 overflow-y-auto">{children}</main>
