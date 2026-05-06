@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Send, Zap } from "lucide-react";
 import toast from "react-hot-toast";
 
-interface Settings { msg_a: string; msg_b: string; wa_url: string; wa_key: string; send_delay: number; }
+interface Settings { msg_a: string; msg_b: string; send_delay: number; }
 
 export default function SendPage() {
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -34,31 +34,35 @@ export default function SendPage() {
     setShowModal(null);
     setSending(group);
     setLog([]);
+
     const leadsRes = await fetch(`/api/leads?group=${group}&status=unsent`);
     const leads = await leadsRes.json();
+
     if (!leads.length) { toast.error("No unsent leads"); setSending(null); return; }
+
     setProgress({ done: 0, total: leads.length, failed: 0 });
-    const template = group === "A" ? settings!.msg_a : settings!.msg_b;
-    const delay = (settings!.send_delay || 4) * 1000;
+    const delay = (settings?.send_delay || 4) * 1000;
     let done = 0, failed = 0;
+
     for (const lead of leads) {
-      const message = template.replace(/{name}/g, lead.name).replace(/{link}/g, lead.site || "[No URL]");
       try {
-        const res = await fetch(`${settings!.wa_url}/send`, {
-          method: "POST", headers: { "Content-Type": "application/json", "x-api-key": settings!.wa_key },
-          body: JSON.stringify({ phone: lead.phone.replace(/[^0-9+]/g, ""), message }),
-          signal: AbortSignal.timeout(10000),
+        // Call our HTTPS API which calls WA server server-side
+        const res = await fetch("/api/send-one", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ leadId: lead.id, group }),
         });
-        await fetch(`/api/leads/${lead.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "sent", sent_at: new Date().toISOString() }) });
-        if (res.ok) { done++; setLog(l => [...l, `✓ ${lead.name}`]); }
-        else { failed++; setLog(l => [...l, `✗ ${lead.name} — Failed`]); }
+        const result = await res.json();
+        if (result.success) { done++; setLog(l => [...l, `✓ ${lead.name}`]); }
+        else { failed++; setLog(l => [...l, `✗ ${lead.name} — ${result.error || "Failed"}`]); }
       } catch {
-        await fetch(`/api/leads/${lead.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "sent", sent_at: new Date().toISOString() }) });
-        done++; setLog(l => [...l, `~ ${lead.name} — Sent`]);
+        failed++;
+        setLog(l => [...l, `✗ ${lead.name} — Error`]);
       }
       setProgress({ done: done + failed, total: leads.length, failed });
       await new Promise(r => setTimeout(r, delay));
     }
+
     setSending(null);
     toast.success(`${done} messages sent to Group ${group}!`);
     fetchCounts();
@@ -84,7 +88,7 @@ export default function SendPage() {
             <div className="h-full bg-accent rounded-full transition-all" style={{ width: `${pct}%` }} />
           </div>
           <div className="bg-surface2 rounded-lg p-3 max-h-40 overflow-y-auto font-mono text-xs space-y-1">
-            {log.map((l, i) => <div key={i} className={l.startsWith("✓") ? "text-accent" : l.startsWith("✗") ? "text-danger" : "text-white/40"}>{l}</div>)}
+            {log.map((l, i) => <div key={i} className={l.startsWith("✓") ? "text-accent" : "text-danger"}>{l}</div>)}
           </div>
         </div>
       )}
