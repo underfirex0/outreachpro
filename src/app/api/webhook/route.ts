@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-4-6",
         max_tokens: 300,
         system: `Tu es un commercial WhatsApp de BuildFactory Maroc. On a déjà envoyé au client un site web créé spécifiquement pour lui.
 
